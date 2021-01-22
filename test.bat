@@ -1,0 +1,1 @@
+Main.exe test/prelude.br

@@ -1,0 +1,273 @@
+CONJECTURE:
+  Heterogeneous equations with homogeneous substitutions are postponable
+
+  non-injective typeconstructors in unification are now understood.
+  If we have an inductive family:
+
+  data I : A -> Type where
+    mk : (x : A) -> I x
+  
+  and equations:
+
+  (I x, mk x) = (I y, mk y)
+
+  Unification should get stuck, unless injective type constructors are allowed.
+  If we have injectivity, then:
+
+  I x = I y ==> x = y
+
+  and the equation holds. otherwise, constructor injectivity does not apply, because
+  (mk x) and (mk y) are of different types
+
+OPEN PROBLEMS
+  - name representation (DBL, DBI, regular) and its interaction with
+    case-trees and Pi-types
+  - let-expressions and its interaction with
+    - nested case pattern matching
+    - lifting local definitions
+  - reduction/monomorphization/inlining with case-tree representation
+  - getting sharing case-DAGs,
+    - define an encoding for nodes, variables are sequences of integers,
+      selecting each corresponding subdatum from the argument
+    - define a cost-function for dags
+    - hash-cons defined nodes
+    naive algorithm:
+    1. between any step in equation compilation, compute all valid splits
+    2. filter each DAG according to erasure rules
+    3. select smallest remaining DAG.
+  - advanced termination checking, having:
+    - partial applications
+    - nested calls to defined fixpoints
+    - size measure for multiple arguments
+    - argument decrease relaxation: 
+      size decrease is not required for nested/mutual calls,
+      only in call cycles beginning and ending with a particular definition
+  - EITHER guarantee tail-recursive blocks with a single entry compile to CFGs
+    OR     permit case expressions in the term language
+  - reachability analysis on case dags
+  - metavariable unification:
+      pattern
+    > quasipattern
+    > flex-flex
+    > choice
+    > typeclass
+  
+
+CURRENT CONSENSUS
+  - try idris-style universes, and inferred single-parameter
+    polymorphic schemata, whichever is more general
+  - do not translate casetrees to terms, because:
+    - easy termination checks
+    - easy multiplicity checks (erasable cases)
+      => use substitution for checking default cases?
+    - easy reachability checks (erasable cases, codegen)
+    - easy codegen (no need for case in application head)
+  - have mutual, nested inductive families with
+    - uniform parameters for checking nested positivity
+    - non-uniform parameters for universe checking
+    - indices for a variety of cool stuff
+  - have and annotate partial code for convenience
+    - nonterminating
+    - noncovering
+    - nonpositive
+    - fail primitive
+  - define rules for reducing partial code
+
+IDEAS:
+  consider asymmetric @-patterns, for indicating linear usage, ie:
+  
+  xs < (Cons x xs')  => xs is used
+  xs > (Cons x xs')  => Cons x xs' is used
+
+  consider case erasure
+  - new definition for erasable:
+    1. subdata not used (as usual)
+    2. all valid branches go to one node
+    3. where a refutation node is not valid
+    4. a case is valid if any branch is valid
+    5. a lambda is valid if its body is valid
+
+  consider the following definition:
+
+  foo : (0 n : N) -> (m : N) -> (n = m) -> bool
+  foo N.Z   N.Z   Eq.Refl = False
+  foo (S _) (S _) Eq.Refl = True
+
+  the equation compiler must know to split on m first,
+  because m is not erased while n is.
+ 
+  consider introducing temporary name constructor for
+    - lifted local definitions
+    - recursive definitions
+    - meta variables
+    - ambiguous names
+
+  consider variable name scheme not based on DBI/DBL
+    pros:
+    - easier translation to case-DAGs?
+    - no need for lifting
+    cons:
+    - alpha conversion
+    - fresh variables in reduction?
+
+  consider namespace management:
+  - nested modules?
+  - open statements?
+  - sections?
+  - relevant for type class resolution?
+  - relevant for identifying nullary constructors in patterns?
+
+  funny long-term ideas:
+  - eta-equality
+  - smart pattern unification enginge,
+    solving equations in right order to get stuck less often
+  - smart equation compiler, constructing optimal DAGs with
+    minimal splits
+  - low-level codegen
+  - indentation sensitivity
+  - mixfix syntax
+  - interactive termination proofs
+  - alias-aware optimizing compiler
+  - (do forced patterns have any use when we have erasure?)
+
+FEATURE LIST:
+  - refined namespace control
+  - equations
+  - metavariables
+  - implicit function spaces
+  - universes
+  - universe polymorphism?
+  - multiplicity polymorphism
+  - universe inference
+  - multiplicity inference
+  - type classes
+  - type-driven disambiguation
+
+compiler flags
+- have impredicativity/universes/both
+- infer universes
+  - which strat
+- totality defaults
+  - covering
+    => reject non-covering or insert fail
+  - terminating 
+  - infallible
+  - positive
+- decidable checking
+  - delay universe constraint checking
+  - unfold unguarded fixpoints
+  - split on negative data
+  - undecidable unification of meta-variables
+  - have guarded constants or not
+- sound checking
+  - admit Type : Type
+  - admit erasure of partial terms
+- codegen defaults:
+  do nothing/inline if possible/inline or error/always error
+  - recursive datatypes
+  - partial applications
+  - polymorphic recursion
+  - functions defined by large eliminations (varargs)
+  - types     defined by large eliminations (hard to size)
+  - instance arguments
+  
+compiler directives
+- annotate totality
+- inline function
+- inline arguments
+- invoke macro
+- invoke elaborator
+- FFI
+
+the universes:
+- impredicative pros:
+  - small existentials
+  - compatibility with System F
+- impredicative cons:
+  - complicate termination checks
+  - impose elimination restrictions
+  - incompatible with injective type constructors
+  - compatibility with excluded middle requires further elimination restrictions
+- predicative pros:
+  - large types for type-driven meta-programming
+    (eg. type equalities, lists of types, etc)
+- predicative cons:
+  - additional complexity managing levels and inference
+
+Consider grand program architecture:
+
+global:
+  R: -
+  W: define names
+  S: global signature
+     module hierarchy
+module/decl:
+  R: global module hierarchy
+  W: define names
+  S: global signature
+     local namespace
+expr:
+  R: signature
+     namespace
+     context
+  W: duh
+  S: Meta variables
+     constraints
+     guarded constants
+
+decl flags:
+- is lifted (for each definition in mutual blocks)
+- always inline
+- covering
+- terminating
+- positive
+- infallible
+
+term flags:
+- reachable
+- covering
+- infallible
+- terminating
+- positive
+- closure
+- occurs var
+
+consider case-trees once again:
+  pros:
+    straightforward reachability analysis
+    relaxed rules for erased matching
+    no need to prove constructor disjointness, acyclicity, injectivity
+    no need to to abstract branches over said proofs, to apply said proofs to the whole match
+      case-tree has a more straightforward representation,
+      easing compilation and termination checking
+    core need not be burdened with match expressions
+    safe, terminating reduction does not depend on guardedness of one particular (set of) arguments,
+      allowing relaxed rules for termination such as lex ordering.
+  cons:
+    extend core with unification
+    non-straightforward termination check for nested fixpoints
+
+consider translating case trees to terms:
+The problem: in order to specialize objects depending on the eliminee,
+the branches must abstract over them and they must be applied to the whole expression.
+These nested matches complicate termination checking and code generation.
+
+solution 1?
+  don't translate case-trees
+solution 2?
+  perform termination checks before compiling case-trees to terms
+solution 3?
+  introduce a special eliminator that requires no motive and
+  automagically introduces equalities on constructors and indices.
+  Note this is not compatible with dependent recursors,
+  though dependent case distinctions can be derived from it.
+
+in the same vein, consider replacing match-expressions by match-constants.
+If matches are in head position for applications of equalities and large eliminations,
+they might as well accept linear variables and the entire context for that matter.
+keeping trees in case-head form might ease termination checking. The form of a case node will be:
+  intros, D.case params motive alts indices eliminee equalities dependent variables,
+  where alts will be of the form:
+  intro subdata, intro equalities, intro dependent variables, applications.
+to facilitate termination checking with this form, keep in addition to a subdata annotation environment
+a subdata annotation stack.
