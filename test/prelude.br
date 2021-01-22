@@ -1,0 +1,143 @@
+module Prelude
+
+data Void : Type
+
+def Not : Type -> Type
+| A = A -> Void
+
+data Unit : Type
+| tt : Unit
+
+data Bool : Type
+| true  : Bool
+| false : Bool
+
+data Tuple4(A B C D : Type): Type
+| mk : A -> B -> C -> D -> Tuple4 A B C D
+
+data Pair(A B : Type): Type
+| mk : A -> B -> Pair A B
+
+data DPair(A : Type)(B : A -> Type): Type
+| mk : Pi x : A, B x -> DPair A B
+
+def proj1 : Pi (A : Type)(B : A -> Type)(p : DPair A B), A
+| A B (mk x y) = x
+
+def proj2 : Pi (A : Type)(B : A -> Type)(p : DPair A B), B (proj1 A B p)
+| A B (mk x y) = y
+
+data Sum(A B : Type): Type
+| left : A -> Sum A B
+| right : B -> Sum A B
+
+data Eq(A : Type)(x : A): A -> Type
+| refl : Eq A x x
+
+def sym : Pi(A : Type)(x y : A), Eq A x y -> Eq A y x
+| A x y Eq.refl = refl A x
+
+def cong : Pi (A B : Type)(f : A -> B)(x y : A), Eq A x y -> Eq B (f x) (f y)
+| A B f x y Eq.refl = refl B (f x)
+
+data Acc(A : Type)(R : A -> A -> Type)(x : A): Type
+| mk : (Pi y : A, R y x -> Acc A R y) -> Acc A R x
+
+def wf_rec : Pi
+  (A : Type)
+  (R : A -> A -> Type)
+  (P : A -> Type)
+  (f : Pi x : A, (Pi y : A, R y x -> P y) -> P x)
+  (x : A)
+  (acc_x : Acc A R x),
+    P x
+| A R P f x (mk g) = f x (aux A R P f x g)
+and aux : Pi
+  (A : Type)
+  (R : A -> A -> Type)
+  (P : A -> Type)
+  (f : Pi x : A, (Pi y : A, R y x -> P y) -> P x)
+  (x : A)
+  (g : Pi y : A, R y x -> Acc A R y)
+  (y : A)
+  (lt : R y x),
+    P y  
+| A R P f x g y lt = wf_rec A R P f y (g y lt)
+
+(* module nat *)
+
+data Nat : Type
+| zero : Nat
+| succ : Nat -> Nat
+
+def nat_rec : Pi
+  (P : Nat -> Type)
+  (pz : P zero)
+  (ps : Pi n : Nat, P n -> P (succ n))
+  (n : Nat),
+    P n
+| P pz ps Nat.zero = pz
+| P pz ps (succ n) = ps n (nat_rec P pz ps n)
+
+def plus : Nat -> Nat -> Nat
+| Nat.zero m = m
+| (succ n) m = succ (plus n m)
+
+def one : Nat |= succ zero
+
+def two : Nat |= succ one
+
+def three : Nat |= succ two
+
+def even : Nat -> Bool
+| Nat.zero = true
+| (succ Nat.zero) = false
+| (succ (succ n)) = even n
+
+def two_even : Eq Bool (even two) true
+|= refl Bool true
+
+def three_odd : Eq Bool (even three) false
+|= refl Bool false
+
+def one_plus_one_is_two : Eq Nat (plus one one) two
+|= refl Nat two
+
+(*
+def nat_no_conf_t : Nat -> Nat -> Type
+| Nat.zero Nat.zero = Unit
+| (succ n) (succ m) = Eq Nat n m
+| _        _        = Void
+
+def nat_no_conf : Pi (n m : Nat), Eq Nat n m -> nat_no_cont_t n m
+| Nat.zero _ Eq.refl = tt
+| (succ n) _ Eq.refl = Eq.refl Nat n
+*)
+
+def Less : Nat -> Nat -> Type
+| n Nat.zero = Void
+| Nat.zero (succ m) = Unit
+| (succ n) (succ m) = Less n m
+
+(* module vec *)
+
+data Vec (A : Type): Nat -> Type
+| nil  : Vec A zero
+| cons : Pi n : Nat, A -> Vec A n -> Vec A (succ n)
+
+def append : Pi
+  (A : Type)
+  (n m : Nat)
+  (xs : Vec A n)
+  (ys : Vec A m),
+    Vec A (plus n m)
+| _ _ _ Vec.nil ys = ys
+| A _ m (cons n x xs) ys = cons A (plus n m) x (append A n m xs ys)
+
+data Fin : Nat -> Type
+| fzero : Pi n : Nat,          Fin (succ n)
+| fsucc : Pi n : Nat, Fin n -> Fin (succ n)
+
+def nth : Pi (A : Type)(n : Nat), Fin n -> Vec A n -> A
+| _ _ (fzero _)   (cons n x xs) = x
+| A _ (fsucc _ i) (cons n x xs) = nth A n i xs
